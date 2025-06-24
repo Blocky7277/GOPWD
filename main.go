@@ -8,24 +8,28 @@ import (
 	"golang.org/x/term"
 	"syscall"
 	"strings"
+	"github.com/Blocky7277/GOPWD.git/cmd"
 )
 
 func main() {
 	args := os.Args[1:] // Get the arguments without the executable name	
 	if len(args) < 1 {
-		help()
+		cmd.help()
 	} else if args[0] == "help" {
 		help()
 	} else if args[0] == "init" {
 		initMaster()	
+	} else if args[0] == "add" {
+	} else if args[0] == "remove" {
+	} else if args[0] == "get" {
+	// } else if args[0] == "NAN" {
+	// } else if args[0] == "NAN" {
+	} else {
+		fmt.Printf("Argument \"%s\" not found \n", args[0])
+		help()
 	}
 }
 
-func help() {
-	fmt.Print("GOPWD, a cli password manager written in go\n\n")
-	fmt.Println("Commands:")
-	fmt.Println("	init	Set or change the master password")
-}
 
 func initMaster() {
 	configDir, err := os.UserConfigDir()
@@ -43,23 +47,27 @@ func initMaster() {
 		}
 	}
 	mtrPath := appDir + "/.mtr"
-	var passwords string
+	pwdPath := appDir + "/.pwd"
+	// var passwords []byte
 	if exists, _ := util.Exists(mtrPath); exists {
 		dat, err := os.ReadFile(mtrPath)
 		if err != nil {
 			fmt.Println("Failed to read existing master password file exiting")
 			os.Exit(4)
 		}
-		fileMasterPwd := string(dat)
-		var currentMasterPwd string;
+		fileText := strings.Split(string(dat), ":")
+		fileMasterPassword := fileText[0]
+		fileSalt := fileText[1]
+		var currentMasterPassword string;
 		fmt.Println("Enter current master password:")
 		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 		if err != nil {
 			fmt.Println("Password invalid")
 			fmt.Printf("Err: %s", err)
 		}
-		currentMasterPwd = strings.TrimSpace(string(bytePassword))
-		for cryptoutil.HashSha256(currentMasterPwd) != fileMasterPwd {
+		currentMasterPassword = strings.TrimSpace(string(bytePassword))
+		hashedPassword, _ := cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
+		for hashedPassword != fileMasterPassword {
 			fmt.Println("Password doesn't match")
 			fmt.Println("Enter current master password:")
 			bytePassword, err := term.ReadPassword(int(syscall.Stdin))
@@ -67,29 +75,33 @@ func initMaster() {
 				fmt.Println("Password invalid")
 				fmt.Printf("Err: %s", err)
 			}
-			currentMasterPwd = strings.TrimSpace(string(bytePassword))
-			//Decrypt passwords
+			currentMasterPassword = strings.TrimSpace(string(bytePassword))
+			hashedPassword, _ = cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
 		} 
+		// Decrypt passwords with old fileMasterPassword
 	} else {
-		// Check if passwords exist and delete them if they do
+		if exists, _ := util.Exists(pwdPath); exists {
+			os.Remove(pwdPath)
+		}
 	}
-	var masterPwd string
+	var masterPassword string
 	fmt.Println("Enter new master password:")
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		panic(err)
 	}
-	masterPwd = strings.TrimSpace(string(bytePassword))
+	masterPassword = strings.TrimSpace(string(bytePassword))
 	mtr, err := os.Create(mtrPath)
 	if err != nil {
 		panic(err)
 	}
 	defer mtr.Close()
-	hashedMasterPwd := cryptoutil.HashSha256(masterPwd)
-	if _, err := mtr.WriteString(hashedMasterPwd); err != nil {
+	hashedMasterPassword, salt, err := cryptoutil.HashScrypt(masterPassword)
+	if _, err := mtr.WriteString(hashedMasterPassword + ":" + salt); err != nil {
 		panic(err)
 	}
-	if passwords != "" {
-	// Encrypt passwords with new master pwd
+	if exists, _ := util.Exists(pwdPath); exists {
+		// FIXME
+		// Encrypt passwords with new master pwd
 	} 
 }
