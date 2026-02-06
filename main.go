@@ -15,14 +15,13 @@ func main() {
 	} else if args[0] == "init" {
 		cmd.Init()	
 	} else if args[0] == "add" {
+		cmd.Add()
 	} else if args[0] == "remove" {
+		cmd.Remove()
 	} else if args[0] == "get" {
-	// } else if args[0] == "NAN" {
-	// } else if args[0] == "NAN" {
+		cmd.Get()
 	} else {
 		fmt.Printf("Argument \"%s\" not found \n", args[0])
 		cmd.Help()
 	}
 }
-
-

@@ -12,6 +12,8 @@ import (
 
 func Init() {
 	configDir, err := os.UserConfigDir()
+	// args := os.Args[1:] // Remove empty arg
+	// force := len(args) == 2 && args[1] == "--force" //Force means they don't have to auth and we delete pwd
 	if err != nil {
 		fmt.Println("Can't find OS config directory?")
 		fmt.Println("File a bug report")
@@ -57,7 +59,8 @@ func Init() {
 			currentMasterPassword = strings.TrimSpace(string(bytePassword))
 			hashedPassword, _ = cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
 		} 
-		// Decrypt passwords with old fileMasterPassword
+		// FIXME
+		// Decrypt passwords with old fileMasterPassword and store in map
 	} else {
 		if exists, _ := util.Exists(pwdPath); exists {
 			os.Remove(pwdPath)

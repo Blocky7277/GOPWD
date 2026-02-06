@@ -2,12 +2,10 @@ package cryptoutil
 
 import (
 	"fmt"
-	"io"
 	"crypto/sha256"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/base64"
 	"golang.org/x/crypto/scrypt"
 )
@@ -20,10 +18,9 @@ func HashSha256(s string) string {
 } 
 
 func HashScrypt(s string) (string, string, error) {
-	salt := make([]byte, 16)
-	_, err := rand.Read(salt)	
-	if err != nil {
-		return "", "", err
+	salt, err := GenerateSalt()
+	if err != nil  {
+		panic(err)
 	}
 	hash, err := scrypt.Key([]byte(s), salt, 1<<15, 8, 1, 32)
 	if err != nil {
@@ -31,6 +28,15 @@ func HashScrypt(s string) (string, string, error) {
 	}
 	return base64.StdEncoding.EncodeToString(hash), base64.StdEncoding.EncodeToString(salt), nil
 } 
+
+func GenerateSalt() ([]byte, error) {
+	salt := make([]byte, 16)
+	_, err := rand.Read(salt)	
+	if err != nil {
+		return []byte{}, err
+	}
+	return salt, nil
+}
 
 func HashScryptSalt(s string, salt string) (string, error) {
 	decodedSalt, err := base64.StdEncoding.DecodeString(salt)
@@ -46,58 +52,75 @@ func HashScryptSalt(s string, salt string) (string, error) {
 	return base64.StdEncoding.EncodeToString(newHash), nil
 }
 
-func EncryptString(s string, key string) string {
-	hashedKey, salt, err := HashScrypt(s)
-	byteHashedKey, _ := base64.StdEncoding.DecodeString(hashedKey)
-	byteSalt, _ := base64.StdEncoding.DecodeString(salt)
-	block, err := aes.NewCipher(byteHashedKey)
-	if err != nil {
-		panic(err)
-	}
-	aesGCM, err := cipher.NewGCM(block) // Galois Counter Mode
-	if err != nil {
-		panic(err)
+func EncryptString(plaintext, password string) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
 	}
 
-	nonce := make([]byte, aesGCM.NonceSize()) // must be unique per encryption
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		panic(err)
+	key, err := scrypt.Key([]byte(password), salt, 1<<15, 8, 1, 32)
+	if err != nil {
+		return "", err
 	}
 
-	cipherText := aesGCM.Seal(nil, nonce, []byte(s), nil)
-	return hex.EncodeToString(append(byteSalt, append(nonce, cipherText...)...)) 
-}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
 
-func DecryptString(s string, key string) string {
-	encryptedText, err := hex.DecodeString(s)
-	saltSize := 16 // Assume that all encryption is done within the program so all salts are 16 bytes
-	if len(encryptedText) < saltSize {
-		panic(fmt.Errorf("ciphertext shorter than salt?"))
-	}
-	salt := base64.StdEncoding.EncodeToString(encryptedText[:saltSize])
-	hashedKey, err := HashScryptSalt(key, salt)
-	if err != nil {
-		panic(err)
-	}
-	byteHashedKey, _ := base64.StdEncoding.DecodeString(hashedKey)
-	block, err := aes.NewCipher(byteHashedKey)
-	if err != nil {
-		panic(fmt.Errorf("failed to create AES cipher: %w", err))
-	}		
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		panic(fmt.Errorf("failed to create GCM: %w", err))
+		return "", err
 	}
-	nonceSize := gcm.NonceSize()
-	if len(encryptedText) < nonceSize + saltSize {
-		panic(fmt.Errorf("ciphertext too short for GCM decryption"))
-	}
-	nonce, encryptedData := encryptedText[saltSize:saltSize + nonceSize], encryptedText[saltSize + nonceSize:]
 
-	plaintext, err := gcm.Open(nil, nonce, encryptedData, nil)
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+
+	cipherText := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	out := append(salt, append(nonce, cipherText...)...)
+	return base64.StdEncoding.EncodeToString(out), nil
+}
+
+func DecryptString(encrypted, password string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(encrypted)
 	if err != nil {
-		panic(fmt.Errorf("failed to decrypt: %w", err))
+		return "", err
 	}
 
-	return string(plaintext)
+	if len(data) < 16 {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+
+	salt := data[:16]
+	data = data[16:]
+
+	key, err := scrypt.Key([]byte(password), salt, 1<<15, 8, 1, 32)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short for nonce")
+	}
+
+	nonce, cipherText := data[:nonceSize], data[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, cipherText, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
 }
