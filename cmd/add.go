@@ -35,7 +35,7 @@ func Add() {
 	defer pwd.Close()
 	encryptedPwd, err := cryptoutil.EncryptString(password, currentMasterPassword)
 	if err != nil {
-		fmt.Print("Black Magic failed")
+		fmt.Print("Encryption failed")
 		os.Exit(0)
 	}
 	pwd.WriteString(strings.Join(fileText[:len(fileText) - 1], "\n") + "\n\t\"" + string(pwdDescriptor) + "\":\"" + encryptedPwd + "\"\n}")

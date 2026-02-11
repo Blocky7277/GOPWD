@@ -7,11 +7,13 @@ import (
 	"internal/util"
 	"golang.org/x/term"
 	"syscall"
+	"encoding/json"
 	"strings"
 )
 
 func Init() {
 	configDir, err := os.UserConfigDir()
+	// TODO: Implement --force
 	// args := os.Args[1:] // Remove empty arg
 	// force := len(args) == 2 && args[1] == "--force" //Force means they don't have to auth and we delete pwd
 	if err != nil {
@@ -29,7 +31,7 @@ func Init() {
 	}
 	mtrPath := appDir + "/.mtr"
 	pwdPath := appDir + "/.pwd"
-	// var passwords []byte
+	passwords := make(map[string]string)
 	if exists, _ := util.Exists(mtrPath); exists {
 		dat, err := os.ReadFile(mtrPath)
 		if err != nil {
@@ -59,8 +61,31 @@ func Init() {
 			currentMasterPassword = strings.TrimSpace(string(bytePassword))
 			hashedPassword, _ = cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
 		} 
-		// FIXME
-		// Decrypt passwords with old fileMasterPassword and store in map
+		// Decrypt passwords with old fileMasterPassword and store in an array 
+		if exists, _ := util.Exists(pwdPath); exists {
+			data, err := os.ReadFile(pwdPath)
+			if err != nil {
+				panic(err)
+			}
+
+			if len(data) > 0 {
+				var jsonPwd map[string]string
+				err = json.Unmarshal(data, &jsonPwd)
+				if err != nil {
+					panic(err)
+				}
+				for password := range jsonPwd {
+					decryptedPassword, err := cryptoutil.DecryptString(jsonPwd[password], currentMasterPassword)
+					if err != nil {
+						fmt.Print("Decryption failed exiting")
+						os.Exit(4)
+					}
+					passwords[password] = decryptedPassword
+				}
+				clear(jsonPwd)
+			}
+		}
+	// If the masterfile doesn't exist but a password file does delete it
 	} else {
 		if exists, _ := util.Exists(pwdPath); exists {
 			os.Remove(pwdPath)
@@ -82,8 +107,28 @@ func Init() {
 	if _, err := mtr.WriteString(hashedMasterPassword + ":" + salt); err != nil {
 		panic(err)
 	}
-	if exists, _ := util.Exists(pwdPath); exists {
-		// FIXME
+	if exists, _ := util.Exists(pwdPath); exists && len(passwords) > 0 { 
+		strDat := "{\n}"
+		if err != nil {
+			fmt.Println("Failed to read existing password file exiting")
+			os.Exit(4)
+		}
 		// Encrypt passwords with new master pwd
+		pwd, err := os.Create(pwdPath)
+		if err != nil {
+			panic(err)
+		}
+		defer pwd.Close()
+		for descriptor := range(passwords) {
+			encryptedPwd, err := cryptoutil.EncryptString(passwords[descriptor], masterPassword)
+			if err != nil {
+				fmt.Print("Encryption failed")
+				os.Exit(0)
+			}
+			strDat = strDat[:len(strDat)-2] + "\n\t\"" + string(descriptor) + "\":\"" + encryptedPwd + "\",\n}"
+		}
+		clear(passwords)
+		strDat = strDat[:len(strDat)-3] + "\n}"
+		pwd.WriteString(strDat)
 	} 
 }

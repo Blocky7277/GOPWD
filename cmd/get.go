@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"encoding/json"
 	"github.com/atotto/clipboard"
+	// "golang.design/x/clipboard"
 	"time"
 	"strings"
 )
