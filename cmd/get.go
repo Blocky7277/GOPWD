@@ -2,17 +2,13 @@ package cmd
 
 import (
 	"os"
-	// "golang.org/x/term"
 	"github.com/sahilm/fuzzy"
 	"internal/cryptoutil"
 	"internal/util"
 	"fmt"
-	// "syscall"
-	// "strings"
 	tea "github.com/charmbracelet/bubbletea"
 	"encoding/json"
 	"github.com/atotto/clipboard"
-	// "golang.design/x/clipboard"
 	"time"
 	"strings"
 )
@@ -49,11 +45,9 @@ func Get() {
 			fmt.Print(pwd)
 			time.Sleep(5 * time.Second)
 			fmt.Print("\r", strings.Repeat(" ", len(pwd)+10), "\r") // overwrite with spaces
-
-			return
+		}else {
+			fmt.Println("Password copied to clipboard!")
 		}
-
-		fmt.Println("Password copied to clipboard!")
 	}else {
         fmt.Println("No selection made.")
     }
