@@ -92,12 +92,24 @@ func Init() {
 		}
 	}
 	var masterPassword string
-	fmt.Println("Enter new master password:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		panic(err)
+	var confirmMasterPassword string
+	for masterPassword != confirmMasterPassword || masterPassword == "" {
+		fmt.Println("Enter new master password:")
+		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			panic(err)
+		}
+		masterPassword = strings.TrimSpace(string(bytePassword))
+		fmt.Println("Confirm password:")
+		bytePassword, err = term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			panic(err)
+		}
+		confirmMasterPassword = strings.TrimSpace(string(bytePassword))
+		if masterPassword != confirmMasterPassword {
+			fmt.Println("Passwords don't match try again")
+		} 
 	}
-	masterPassword = strings.TrimSpace(string(bytePassword))
 	mtr, err := os.Create(mtrPath)
 	if err != nil {
 		panic(err)
