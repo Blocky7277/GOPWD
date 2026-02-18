@@ -32,6 +32,9 @@ func Add() {
 		}
 	}
 	pwd, err := os.Create(pwdPath)
+	if err != nil {
+		panic(err)
+	}
 	defer pwd.Close()
 	encryptedPwd, err := cryptoutil.EncryptString(password, currentMasterPassword)
 	if err != nil {

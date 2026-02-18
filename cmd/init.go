@@ -13,9 +13,9 @@ import (
 
 func Init() {
 	configDir, err := os.UserConfigDir()
-	// TODO: Implement --force
-	// args := os.Args[1:] // Remove empty arg
-	// force := len(args) == 2 && args[1] == "--force" //Force means they don't have to auth and we delete pwd
+	// Check for --force
+	args := os.Args[2:] // Remove empty arg
+	force := len(args) == 1 && args[0] == "--force" //Force means they don't have to auth and we delete pwd
 	if err != nil {
 		fmt.Println("Can't find OS config directory?")
 		fmt.Println("File a bug report")
@@ -32,7 +32,7 @@ func Init() {
 	mtrPath := appDir + "/.mtr"
 	pwdPath := appDir + "/.pwd"
 	passwords := make(map[string]string)
-	if exists, _ := util.Exists(mtrPath); exists {
+	if exists, _ := util.Exists(mtrPath); exists && !force {
 		dat, err := os.ReadFile(mtrPath)
 		if err != nil {
 			fmt.Println("Failed to read existing master password file exiting")
@@ -42,16 +42,8 @@ func Init() {
 		fileMasterPassword := fileText[0]
 		fileSalt := fileText[1]
 		var currentMasterPassword string;
-		fmt.Println("Enter current master password:")
-		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-		if err != nil {
-			fmt.Println("Password invalid")
-			fmt.Printf("Err: %s", err)
-		}
-		currentMasterPassword = strings.TrimSpace(string(bytePassword))
-		hashedPassword, _ := cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
+		var hashedPassword string;
 		for hashedPassword != fileMasterPassword {
-			fmt.Println("Password doesn't match")
 			fmt.Println("Enter current master password:")
 			bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 			if err != nil {
@@ -60,6 +52,9 @@ func Init() {
 			}
 			currentMasterPassword = strings.TrimSpace(string(bytePassword))
 			hashedPassword, _ = cryptoutil.HashScryptSalt(currentMasterPassword, fileSalt);
+			if hashedPassword != fileMasterPassword {
+				fmt.Println("Incorrect Password")
+			} 
 		} 
 		// Decrypt passwords with old fileMasterPassword and store in an array 
 		if exists, _ := util.Exists(pwdPath); exists {
@@ -85,10 +80,31 @@ func Init() {
 				clear(jsonPwd)
 			}
 		}
-	// If the masterfile doesn't exist but a password file does delete it
+	// If the masterfile doesn't exist or the user passed --force and a password file exists delete it
 	} else {
 		if exists, _ := util.Exists(pwdPath); exists {
-			os.Remove(pwdPath)
+			if force {
+				// Verify user wants to delete passwords
+				fmt.Println()
+				fmt.Println("--force used THIS WILL DELETE ALL PASSWORDS")
+				fmt.Println(" IS THIS OKAY [y/n]: ")
+				confirm := "-1"
+				for confirm != "y" && confirm != "n" {
+					fmt.Scanln(&confirm)
+					if !strings.EqualFold(confirm, "y") && !strings.EqualFold(confirm, "n") {
+						fmt.Println("Please enter y/n")
+					}
+				}
+				if strings.EqualFold(confirm, "y") {
+					fmt.Println("Deleting passwords")
+					os.Remove(pwdPath)
+				} else {
+					fmt.Println("Passwords will not be deleted exiting...")
+					os.Exit(0)
+				}
+			} else {
+				os.Remove(pwdPath)
+			}
 		}
 	}
 	var masterPassword string
